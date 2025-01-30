@@ -11,43 +11,17 @@ provider "kubernetes" {
    cluster_ca_certificate = base64decode(data.google_container_cluster.my_cluster.master_auth.0.cluster_ca_certificate)
 }
 
-resource "kubernetes_namespace" "wordpress" {
+resource "kubernetes_namespace" "wordpress_ns" {
   metadata {
     name = "wordpress"
   }
 }
 
-resource "kubernetes_secret" "mysql_secret" {
-  metadata {
-    name = "mysql-secret"
-  }
-
-  data = {
-    mysql-root-password = "wordpress"
-    mysql-password = "wordpress"
-  }
-}
-
-resource "kubernetes_persistent_volume_claim" "mysql_data" {
-  metadata {
-    name      = "mysql-pv-claim"
-    namespace = "wordpress"
-  }
-  spec {
-    access_modes = ["ReadWriteOnce"]
-    resources {
-      requests = {
-        storage = "1Gi"
-      }
-    }
-    storage_class_name = "standard"
-  }
-}
-
-
+# Deploy MySQL Database
 resource "kubernetes_deployment" "mysql" {
   metadata {
-    name   = "mysql"
+    name      = "mysql"
+    namespace = kubernetes_namespace.wordpress_ns.metadata[0].name
     labels = {
       app = "mysql"
     }
@@ -55,6 +29,7 @@ resource "kubernetes_deployment" "mysql" {
 
   spec {
     replicas = 1
+
     selector {
       match_labels = {
         app = "mysql"
@@ -72,14 +47,10 @@ resource "kubernetes_deployment" "mysql" {
         container {
           name  = "mysql"
           image = "mysql:5.7"
+
           env {
-            name = "MYSQL_ROOT_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.mysql_secret.metadata[0].name
-                key  = "mysql-root-password"
-              }
-            }
+            name  = "MYSQL_ROOT_PASSWORD"
+            value = "rootpassword"
           }
 
           env {
@@ -93,30 +64,12 @@ resource "kubernetes_deployment" "mysql" {
           }
 
           env {
-            name = "MYSQL_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.mysql_secret.metadata[0].name
-                key  = "mysql-password"
-              }
-            }
+            name  = "MYSQL_PASSWORD"
+            value = "wordpresspassword"
           }
 
           port {
-            name          = "mysql"
             container_port = 3306
-          }
-
-          volume_mount {
-            name       = "mysql-data"
-            mount_path = "/var/lib/mysql"
-          }
-        }
-
-        volume {
-          name = "mysql-data"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.mysql_data.metadata[0].name
           }
         }
       }
@@ -124,12 +77,11 @@ resource "kubernetes_deployment" "mysql" {
   }
 }
 
+# Create MySQL Service
 resource "kubernetes_service" "mysql" {
   metadata {
-    name   = "mysql"
-    labels = {
-      app = "mysql"
-    }
+    name      = "mysql"
+    namespace = kubernetes_namespace.wordpress_ns.metadata[0].name
   }
 
   spec {
@@ -144,9 +96,11 @@ resource "kubernetes_service" "mysql" {
   }
 }
 
+# Deploy WordPress Application
 resource "kubernetes_deployment" "wordpress" {
   metadata {
-    name   = "wordpress"
+    name      = "wordpress"
+    namespace = kubernetes_namespace.wordpress_ns.metadata[0].name
     labels = {
       app = "wordpress"
     }
@@ -154,6 +108,7 @@ resource "kubernetes_deployment" "wordpress" {
 
   spec {
     replicas = 1
+
     selector {
       match_labels = {
         app = "wordpress"
@@ -174,12 +129,7 @@ resource "kubernetes_deployment" "wordpress" {
 
           env {
             name  = "WORDPRESS_DB_HOST"
-            value = "mysql" 
-          }
-
-          env {
-            name  = "WORDPRESS_DB_NAME"
-            value = "wordpress"
+            value = "mysql.wordpress.svc.cluster.local:3306"
           }
 
           env {
@@ -188,17 +138,16 @@ resource "kubernetes_deployment" "wordpress" {
           }
 
           env {
-            name = "WORDPRESS_DB_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.mysql_secret.metadata[0].name
-                key  = "mysql-password"
-              }
-            }
+            name  = "WORDPRESS_DB_PASSWORD"
+            value = "wordpresspassword"
+          }
+
+          env {
+            name  = "WORDPRESS_DB_NAME"
+            value = "wordpress"
           }
 
           port {
-            name          = "wordpress"
             container_port = 80
           }
         }
@@ -207,18 +156,14 @@ resource "kubernetes_deployment" "wordpress" {
   }
 }
 
+# Expose WordPress using a LoadBalancer
 resource "kubernetes_service" "wordpress" {
   metadata {
-    name   = "wordpress"
-    labels = {
-      app = "wordpress"
-    }
+    name      = "wordpress"
+    namespace = kubernetes_namespace.wordpress_ns.metadata[0].name
   }
 
   spec {
-    # Change to "ClusterIP" or "NodePort" if needed
-    type = "LoadBalancer"
-
     selector = {
       app = "wordpress"
     }
@@ -226,7 +171,8 @@ resource "kubernetes_service" "wordpress" {
     port {
       port        = 80
       target_port = 80
-      protocol    = "TCP"
     }
+
+    type = "LoadBalancer"
   }
 }

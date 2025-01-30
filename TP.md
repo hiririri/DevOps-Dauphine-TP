@@ -424,6 +424,9 @@ Notre but, ne l'oublions pas est de déployer wordpress sur Cloud Run puis Kuber
 
    4. Rendez vous sur l'adresse IP publique du service kubernetes Wordpress et vérifiez que Wordpress fonctionne 🔥
 
+      `34.31.207.178`
+
+      ![alt text](image-11.png)
 
 ## BONUS : Partie 4
 
@@ -433,6 +436,12 @@ Notre but, ne l'oublions pas est de déployer wordpress sur Cloud Run puis Kuber
 
 2. Quelles critiques du TP pouvez vous faire ? Quels sont les éléments redondants de notre configuration ?
    1. Quels paramètres avons nous dû recopier plusieurs fois ? Comment pourrions nous faire pour ne pas avoir à les recopier ?
+
+      Configuration des variables de la base de données (WORDPRESS_DB_HOST, WORDPRESS_DB_USER, WORDPRESS_DB_PASSWORD).
+      Configuration du provider Kubernetes (host, token, cluster_ca_certificate).
+      Définitions des services Cloud SQL, Artifact Registry, Cloud Run et Kubernetes qui pourraient être générées dynamiquement.
+      Amélioration possible est d'utiliser des variables Terraform (variables.tf) pour éviter la répétition des mêmes valeurs.
+
    2. Quel outil pouvons nous utiliser pour déployer Wordpress sur Kubernetes ? Faites les changements nécessaires dans votre code Terraform.
 
    Utiliser Helm dans Terraform.
